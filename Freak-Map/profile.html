@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Profile</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <h1>Profile</h1>
+    <p>Welcome, <span id="userEmail"></span></p>
+    <button id="logout">Logout</button>
+    <nav>
+      <a href="map.html">Map</a>
+    </nav>
+    <h2>Friends</h2>
+    <input type="email" id="friendEmail" placeholder="Friend's Email" />
+    <button id="addFriend">Add Friend</button>
+    <ul id="friendsList"></ul>
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-firestore.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+      firebase.auth().onAuthStateChanged((user) => {
+        if (user) {
+          document.getElementById("userEmail").textContent = user.email;
+          loadFriends(user.uid);
+        } else {
+          window.location.href = "login.html";
+        }
+      });
+
+      const logoutButton = document.getElementById("logout");
+      logoutButton.addEventListener("click", () => {
+        firebase
+          .auth()
+          .signOut()
+          .then(() => {
+            window.location.href = "login.html";
+          })
+          .catch((error) => {
+            console.error("Error logging out:", error);
+          });
+      });
+
+      const addFriendButton = document.getElementById("addFriend");
+      addFriendButton.addEventListener("click", () => {
+        const friendEmail = document.getElementById("friendEmail").value;
+        const user = firebase.auth().currentUser;
+        if (friendEmail && user) {
+          addFriend(user.uid, friendEmail);
+        }
+      });
+
+      function loadFriends(userId) {
+        const friendsList = document.getElementById("friendsList");
+        friendsList.innerHTML = "";
+        firebase
+          .firestore()
+          .collection("users")
+          .doc(userId)
+          .onSnapshot((doc) => {
+            const userData = doc.data();
+            if (userData.friends) {
+              userData.friends.forEach((friendId) => {
+                firebase
+                  .firestore()
+                  .collection("users")
+                  .doc(friendId)
+                  .get()
+                  .then((friendDoc) => {
+                    const friendData = friendDoc.data();
+                    const li = document.createElement("li");
+                    li.textContent = friendData.email;
+                    friendsList.appendChild(li);
+                  });
+              });
+            }
+          });
+      }
+
+      function addFriend(userId, friendEmail) {
+        firebase
+          .firestore()
+          .collection("users")
+          .where("email", "==", friendEmail)
+          .get()
+          .then((querySnapshot) => {
+            if (!querySnapshot.empty) {
+              const friendId = querySnapshot.docs[0].id;
+              firebase
+                .firestore()
+                .collection("users")
+                .doc(userId)
+                .update({
+                  friends: firebase.firestore.FieldValue.arrayUnion(friendId),
+                });
+              firebase
+                .firestore()
+                .collection("users")
+                .doc(friendId)
+                .update({
+                  friends: firebase.firestore.FieldValue.arrayUnion(userId),
+                });
+            } else {
+              alert("User not found");
+            }
+          })
+          .catch((error) => {
+            console.error("Error adding friend:", error);
+          });
+      }
+    </script>
+  </body>
+</html>
